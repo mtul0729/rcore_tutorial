@@ -29,7 +29,7 @@ BASE ?= 1
 # Disassembly
 DISASM ?= -x
 
-build: env $(KERNEL_BIN)
+build: $(KERNEL_BIN)
 
 env:
 	(rustup target list | grep "riscv64gc-unknown-none-elf (installed)") || rustup target add $(TARGET)
