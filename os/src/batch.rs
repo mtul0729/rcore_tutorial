@@ -144,11 +144,10 @@ pub fn run_next_app() -> ! {
     extern "C" {
         fn __restore(cx_addr: usize);
     }
+    let trap_context = TrapContext::app_init_context(APP_BASE_ADDRESS, USER_STACK.get_sp());
+    let new_kernel_sp = KERNEL_STACK.push_context(trap_context) as *const _ as usize;
     unsafe {
-        __restore(KERNEL_STACK.push_context(TrapContext::app_init_context(
-            APP_BASE_ADDRESS,
-            USER_STACK.get_sp(),
-        )) as *const _ as usize);
+        __restore(new_kernel_sp);
     }
     panic!("Unreachable in batch::run_current_app!");
 }
