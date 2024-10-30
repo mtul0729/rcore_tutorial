@@ -1,12 +1,19 @@
 //! Process management syscalls
+use core::mem::size_of;
+use core::ptr;
+
 use crate::{
     config::MAX_SYSCALL_NUM,
+    mm::translated_byte_buffer,
     task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+        change_program_brk, current_user_token, exit_current_and_run_next,
+        suspend_current_and_run_next, TaskStatus,
     },
+    timer::get_time_us,
 };
 
-#[repr(C)]
+// 16字节对齐，避免跨页
+#[repr(C, align(16))]
 #[derive(Debug)]
 pub struct TimeVal {
     pub sec: usize,
@@ -43,7 +50,24 @@ pub fn sys_yield() -> isize {
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+    let us = get_time_us();
+    let timeval = TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    };
+    let token = current_user_token();
+    let ptr = _ts as *const u8;
+    let len = size_of::<TimeVal>();
+    let mut buf = translated_byte_buffer(token, ptr, len);
+    let ts = buf.first_mut().unwrap();
+    unsafe {
+        ptr::copy_nonoverlapping(
+            &timeval as *const TimeVal as *const u8,
+            *ts as *mut [u8] as *mut u8,
+            size_of::<TimeVal>() / size_of::<u8>(),
+        );
+    }
+    0
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
