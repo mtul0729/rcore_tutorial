@@ -48,24 +48,21 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
     let us = get_time_us();
     let timeval = TimeVal {
         sec: us / 1_000_000,
         usec: us % 1_000_000,
     };
-    let token = current_user_token();
-    let ptr = _ts as *const u8;
-    let len = size_of::<TimeVal>();
-    let mut buf = translated_byte_buffer(token, ptr, len);
-    let ts = buf.first_mut().unwrap();
-    unsafe {
-        ptr::copy_nonoverlapping(
-            &timeval as *const TimeVal as *const u8,
-            *ts as *mut [u8] as *mut u8,
-            size_of::<TimeVal>() / size_of::<u8>(),
-        );
+    let mut src = &timeval as *const _ as *const u8;
+    let bufs = translated_byte_buffer(current_user_token(), ts as *const u8, size_of::<TimeVal>());
+    for buf in bufs {
+        let buf_len = buf.len();
+        unsafe {
+            ptr::copy_nonoverlapping(src, buf as *mut _ as *mut u8, size_of::<TimeVal>());
+            src = src.add(buf_len);
+        }
     }
     0
 }
@@ -74,16 +71,20 @@ pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
+    trace!("kernel: sys_task_info");
 
-    let status = get_current_task_status();
-    let syscall_times = get_syscall_times();
-    let time = get_time_ms() - get_init_time();
-    unsafe {
-        *ti = TaskInfo {
-            status,
-            syscall_times,
-            time,
+    let taskinfo = TaskInfo {
+        status: get_current_task_status(),
+        syscall_times: get_syscall_times(),
+        time: get_time_ms() - get_init_time(),
+    };
+    let mut src = &taskinfo as *const _ as *const u8;
+    let bufs = translated_byte_buffer(current_user_token(), ti as *const _, size_of::<TaskInfo>());
+    for buf in bufs {
+        let buf_len = buf.len();
+        unsafe {
+            ptr::copy_nonoverlapping(src, buf as *mut _ as *mut u8, buf_len);
+            src = src.add(buf_len);
         }
     }
     0
