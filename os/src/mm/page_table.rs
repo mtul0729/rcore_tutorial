@@ -127,10 +127,19 @@ impl PageTable {
     }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
-    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+    pub fn map(
+        &mut self,
+        vpn: VirtPageNum,
+        ppn: PhysPageNum,
+        flags: PTEFlags,
+    ) -> Result<(), MemErr>{
         let pte = self.find_pte_create(vpn).unwrap();
-        assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
+        if pte.is_valid() {
+            // mapped before
+            return Err(MemErr::MappedBefore);
+        }
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
+        Ok(())
     }
     /// remove the map between virtual page number and physical page number
     #[allow(unused)]
@@ -147,6 +156,12 @@ impl PageTable {
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
+}
+
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum MemErr {
+    MappedBefore,
 }
 
 /// Translate&Copy a ptr[u8] array with LENGTH len to a mutable u8 Vec through page table

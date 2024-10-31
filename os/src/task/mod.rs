@@ -25,6 +25,7 @@ pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
 
+use crate::mm::{MapPermission, MemErr, VirtAddr};
 use crate::timer::get_time_ms;
 
 /// The task manager, where all the tasks are managed.
@@ -180,6 +181,17 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].init_time
     }
+    fn append_map_array(
+        &self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) -> Result<(), MemErr> {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+        memory_set.insert_framed_area(start_va, end_va, permission)
+    }
 }
 
 /// Run the first task in task list.
@@ -248,4 +260,13 @@ pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
 /// Get the init_time of the current 'Running' task
 pub fn get_init_time() -> usize {
     TASK_MANAGER.get_init_time()
+}
+
+/// Append MapArea to current 'Running' task
+pub fn append_map_area(
+    start_va: VirtAddr,
+    end_va: VirtAddr,
+    permission: MapPermission,
+) -> Result<(), MemErr> {
+    TASK_MANAGER.append_map_array(start_va, end_va, permission)
 }

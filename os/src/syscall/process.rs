@@ -4,10 +4,11 @@ use core::ptr;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
-    mm::translated_byte_buffer,
+    mm::{translated_byte_buffer, MapPermission, VirtAddr},
     task::{
-        change_program_brk, current_user_token, exit_current_and_run_next, get_current_task_status,
-        get_init_time, get_syscall_times, suspend_current_and_run_next, TaskStatus,
+        append_map_area, change_program_brk, current_user_token, exit_current_and_run_next,
+        get_current_task_status, get_init_time, get_syscall_times, suspend_current_and_run_next,
+        TaskStatus,
     },
     timer::{get_time_ms, get_time_us},
 };
@@ -91,9 +92,24 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    if (port & !0x7 != 0) || (port & 0x7 == 0) {
+        return -1;
+    }
+    let port = port << 1;
+    let permission = MapPermission::from_bits(port as u8).unwrap() | MapPermission::U;
+    let start_va: VirtAddr = start.into();
+    if !start_va.aligned() {
+        return -1;
+    }
+    if len == 0 {
+        return 0;
+    }
+    match append_map_area(start_va, (start + len).into(), permission) {
+        Ok(_) => 0,
+        _ => -1,
+    }
 }
 
 // YOUR JOB: Implement munmap.
