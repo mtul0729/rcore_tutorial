@@ -1,6 +1,5 @@
 //! Process management syscalls
 use core::mem::size_of;
-use core::ptr;
 
 use crate::{
     config::MAX_SYSCALL_NUM,
@@ -56,14 +55,16 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
         sec: us / 1_000_000,
         usec: us % 1_000_000,
     };
-    let mut src = &timeval as *const _ as *const u8;
-    let bufs = translated_byte_buffer(current_user_token(), ts as *const u8, size_of::<TimeVal>());
+    let ptr = &timeval as *const _ as *const u8;
+    let len = size_of::<TimeVal>();
+    let timeval = unsafe { core::slice::from_raw_parts(ptr, len) };
+    let bufs = translated_byte_buffer(current_user_token(), ts as *const u8, len);
+    let mut start: usize = 0;
     for buf in bufs {
         let buf_len = buf.len();
-        unsafe {
-            ptr::copy_nonoverlapping(src, buf as *mut _ as *mut u8, size_of::<TimeVal>());
-            src = src.add(buf_len);
-        }
+        let src = &timeval[start..len.min(start + buf_len)];
+        buf.copy_from_slice(src);
+        start += buf_len;
     }
     0
 }
@@ -79,14 +80,16 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
         syscall_times: get_syscall_times(),
         time: get_time_ms() - get_init_time(),
     };
-    let mut src = &taskinfo as *const _ as *const u8;
-    let bufs = translated_byte_buffer(current_user_token(), ti as *const _, size_of::<TaskInfo>());
+    let ptr = &taskinfo as *const _ as *const u8;
+    let len = size_of::<TaskInfo>();
+    let taskinfo = unsafe { core::slice::from_raw_parts(ptr, len) };
+    let bufs = translated_byte_buffer(current_user_token(), ti as *const u8, len);
+    let mut start: usize = 0;
     for buf in bufs {
         let buf_len = buf.len();
-        unsafe {
-            ptr::copy_nonoverlapping(src, buf as *mut _ as *mut u8, buf_len);
-            src = src.add(buf_len);
-        }
+        let src = &taskinfo[start..len.min(start + buf_len)];
+        buf.copy_from_slice(src);
+        start += buf_len;
     }
     0
 }
