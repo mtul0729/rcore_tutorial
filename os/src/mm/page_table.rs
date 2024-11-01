@@ -1,6 +1,6 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{frame_alloc, FrameTracker, MemErr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
@@ -132,7 +132,7 @@ impl PageTable {
         vpn: VirtPageNum,
         ppn: PhysPageNum,
         flags: PTEFlags,
-    ) -> Result<(), MemErr>{
+    ) -> Result<(), MemErr> {
         let pte = self.find_pte_create(vpn).unwrap();
         if pte.is_valid() {
             // mapped before
@@ -156,12 +156,6 @@ impl PageTable {
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }
-}
-
-#[non_exhaustive]
-#[derive(Debug)]
-pub enum MemErr {
-    MappedBefore,
 }
 
 /// Translate&Copy a ptr[u8] array with LENGTH len to a mutable u8 Vec through page table

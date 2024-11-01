@@ -7,8 +7,8 @@ use crate::{
     mm::{translated_byte_buffer, MapPermission, VirtAddr},
     task::{
         append_map_area, change_program_brk, current_user_token, exit_current_and_run_next,
-        get_current_task_status, get_init_time, get_syscall_times, suspend_current_and_run_next,
-        TaskStatus,
+        get_current_task_status, get_init_time, get_syscall_times, remove_map_area,
+        suspend_current_and_run_next, TaskStatus,
     },
     timer::{get_time_ms, get_time_us},
 };
@@ -93,7 +93,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
+    trace!("kernel: sys_mmap");
     if (port & !0x7 != 0) || (port & 0x7 == 0) {
         return -1;
     }
@@ -113,9 +113,13 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    trace!("kernel: sys_munmap");
+    // 找到完全对应的Maparea并删除，返回0，否则返回-1
+    match remove_map_area(start.into(), (start + len).into()) {
+        Ok(_) => 0,
+        _ => -1,
+    }
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

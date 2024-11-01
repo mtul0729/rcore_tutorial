@@ -181,7 +181,7 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].init_time
     }
-    fn append_map_array(
+    fn append_map_area(
         &self,
         start_va: VirtAddr,
         end_va: VirtAddr,
@@ -191,6 +191,12 @@ impl TaskManager {
         let current = inner.current_task;
         let memory_set = &mut inner.tasks[current].memory_set;
         memory_set.insert_framed_area(start_va, end_va, permission)
+    }
+    fn remove_map_area(&self, start_va: VirtAddr, end_va: VirtAddr) -> Result<(), MemErr> {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let memory_set = &mut inner.tasks[current].memory_set;
+        memory_set.remove_area(start_va, end_va)
     }
 }
 
@@ -262,11 +268,16 @@ pub fn get_init_time() -> usize {
     TASK_MANAGER.get_init_time()
 }
 
-/// Append MapArea to current 'Running' task
+/// Append a MapArea to current 'Running' task
 pub fn append_map_area(
     start_va: VirtAddr,
     end_va: VirtAddr,
     permission: MapPermission,
 ) -> Result<(), MemErr> {
-    TASK_MANAGER.append_map_array(start_va, end_va, permission)
+    TASK_MANAGER.append_map_area(start_va, end_va, permission)
+}
+
+/// Remove a MapArea to current 'Running' task
+pub fn remove_map_area(start_va: VirtAddr, end_va: VirtAddr) -> Result<(), MemErr> {
+    TASK_MANAGER.remove_map_area(start_va, end_va)
 }
