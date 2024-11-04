@@ -7,7 +7,10 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, MemErr, VirtAddr};
 use crate::sync::UPSafeCell;
+use crate::syscall::TaskInfo;
+use crate::timer::get_time_ms;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
@@ -43,6 +46,38 @@ impl Processor {
     ///Get current task in cloning semanteme
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
+    }
+
+    fn count_syscall(&self, syscall_id: usize) {
+        let current = self.current().unwrap();
+        let mut inner = current.inner_exclusive_access();
+        inner.syscall_times[syscall_id] += 1;
+    }
+    fn get_task_info(&self) -> TaskInfo {
+        let current = self.current().unwrap();
+        let inner = current.inner_exclusive_access();
+        TaskInfo::new(
+            inner.task_status,
+            inner.syscall_times,
+            get_time_ms() - inner.init_time,
+        )
+    }
+    fn append_map_area(
+        &self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) -> Result<(), MemErr> {
+        let current = self.current().unwrap();
+        let mut inner = current.inner_exclusive_access();
+        let memory_set = &mut inner.memory_set;
+        memory_set.insert_framed_area(start_va, end_va, permission)
+    }
+    fn remove_map_area(&self, start_va: VirtAddr, end_va: VirtAddr) -> Result<(), MemErr> {
+        let current = self.current().unwrap();
+        let mut inner = current.inner_exclusive_access();
+        let memory_set = &mut inner.memory_set;
+        memory_set.remove_area(start_va, end_va)
     }
 }
 
@@ -108,4 +143,27 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     unsafe {
         __switch(switched_task_cx_ptr, idle_task_cx_ptr);
     }
+}
+
+/// Increase syscall counter of the current task
+pub fn count_syscall(syscall_id: usize) {
+    PROCESSOR.exclusive_access().count_syscall(syscall_id)
+}
+
+pub fn get_task_info() -> TaskInfo {
+    PROCESSOR.exclusive_access().get_task_info()
+}
+
+/// Append a MapArea to current task
+pub fn append_map_area(
+    start_va: VirtAddr,
+    end_va: VirtAddr,
+    permission: MapPermission,
+) -> Result<(), MemErr> {
+    PROCESSOR.exclusive_access().append_map_area(start_va, end_va, permission)
+}
+
+/// Remove a MapArea to current task
+pub fn remove_map_area(start_va: VirtAddr, end_va: VirtAddr) -> Result<(), MemErr> {
+    PROCESSOR.exclusive_access().remove_map_area(start_va, end_va)
 }

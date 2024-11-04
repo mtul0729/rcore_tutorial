@@ -21,26 +21,19 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_SYSCALL_NUM;
 use crate::loader::get_app_data_by_name;
-use crate::loader::{get_app_data, get_num_app};
-use crate::sync::UPSafeCell;
-use crate::trap::TrapContext;
 use alloc::sync::Arc;
-use alloc::vec::Vec;
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
-use crate::mm::{MapPermission, MemErr, VirtAddr};
-use crate::timer::get_time_ms;
 pub use context::TaskContext;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
-    Processor,
+    append_map_area, count_syscall, current_task, current_trap_cx, current_user_token,
+    get_task_info, remove_map_area, run_tasks, schedule, take_current_task, Processor,
 };
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {

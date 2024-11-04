@@ -45,6 +45,7 @@ mod process;
 
 use fs::*;
 use process::*;
+pub use process::TaskInfo;
 
 use crate::task::count_syscall;
 /// handle syscall exception with `syscall_id` and other arguments

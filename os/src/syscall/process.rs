@@ -4,14 +4,12 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
-    mm::{translated_byte_buffer, MapPermission, VirtAddr},
-    mm::{translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr},
     task::{
-        add_task, append_map_area, change_program_brk, current_task, current_user_token,
-        exit_current_and_run_next, get_current_task_status, get_init_time, get_syscall_times,
-        remove_map_area, suspend_current_and_run_next, TaskStatus,
+        add_task, append_map_area, current_task, current_user_token, exit_current_and_run_next,
+        get_task_info, remove_map_area, suspend_current_and_run_next, TaskStatus,
     },
-    timer::{get_time_ms, get_time_us},
+    timer::get_time_us,
 };
 use core::mem::size_of;
 
@@ -31,6 +29,16 @@ pub struct TaskInfo {
     syscall_times: [u32; MAX_SYSCALL_NUM],
     /// Total running time of task
     time: usize,
+}
+
+impl TaskInfo {
+    pub fn new(status: TaskStatus, syscall_times: [u32; MAX_SYSCALL_NUM], time: usize) -> Self {
+        Self {
+            status,
+            syscall_times,
+            time,
+        }
+    }
 }
 
 /// task exits and submit an exit code
@@ -158,11 +166,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
         current_task().unwrap().pid.0
     );
 
-    let taskinfo = TaskInfo {
-        status: get_current_task_status(),
-        syscall_times: get_syscall_times(),
-        time: get_time_ms() - get_init_time(),
-    };
+    let taskinfo = get_task_info();
     let ptr = &taskinfo as *const _ as *const u8;
     let len = size_of::<TaskInfo>();
     let taskinfo = unsafe { core::slice::from_raw_parts(ptr, len) };
@@ -208,6 +212,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
         current_task().unwrap().pid.0
     );
     // 找到完全对应的Maparea并删除，返回0，否则返回-1
+    // TODO: replace it with `remove_area_with_start_vpn`
     match remove_map_area(start.into(), (start + len).into()) {
         Ok(_) => 0,
         _ => -1,
