@@ -96,6 +96,9 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            if task_inner.init_time == 0 {
+                task_inner.init_time = get_time_ms();
+            }
             // release coming task_inner manually
             drop(task_inner);
             // release coming task TCB manually
@@ -160,10 +163,14 @@ pub fn append_map_area(
     end_va: VirtAddr,
     permission: MapPermission,
 ) -> Result<(), MemErr> {
-    PROCESSOR.exclusive_access().append_map_area(start_va, end_va, permission)
+    PROCESSOR
+        .exclusive_access()
+        .append_map_area(start_va, end_va, permission)
 }
 
 /// Remove a MapArea to current task
 pub fn remove_map_area(start_va: VirtAddr, end_va: VirtAddr) -> Result<(), MemErr> {
-    PROCESSOR.exclusive_access().remove_map_area(start_va, end_va)
+    PROCESSOR
+        .exclusive_access()
+        .remove_map_area(start_va, end_va)
 }

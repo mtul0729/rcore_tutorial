@@ -7,7 +7,7 @@ use crate::{
     mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr},
     task::{
         add_task, append_map_area, current_task, current_user_token, exit_current_and_run_next,
-        get_task_info, remove_map_area, suspend_current_and_run_next, TaskStatus,
+        get_task_info, remove_map_area, suspend_current_and_run_next, TaskControlBlock, TaskStatus,
     },
     timer::get_time_us,
 };
@@ -162,7 +162,7 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_task_info",
         current_task().unwrap().pid.0
     );
 
@@ -183,10 +183,7 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    trace!("kernel:pid[{}] sys_mmap", current_task().unwrap().pid.0);
     if (port & !0x7 != 0) || (port & 0x7 == 0) {
         return -1;
     }
@@ -207,10 +204,7 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
 
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(start: usize, len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
+    trace!("kernel:pid[{}] sys_munmap", current_task().unwrap().pid.0);
     // 找到完全对应的Maparea并删除，返回0，否则返回-1
     // TODO: replace it with `remove_area_with_start_vpn`
     match remove_map_area(start.into(), (start + len).into()) {
@@ -231,19 +225,39 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_spawn(path: *const u8) -> isize {
+    trace!("kernel:pid[{}] sys_spawnd", current_task().unwrap().pid.0);
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    if let Some(data) = get_app_data_by_name(&path) {
+        let new_task = Arc::new(TaskControlBlock::new(data));
+        let pid = new_task.getpid();
+        add_task(new_task.clone());
+        let Some(current) = current_task() else {
+            return -1;
+        };
+
+        {
+            current.inner_exclusive_access().children.push(new_task);
+        }
+        pid as isize
+    } else {
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_set_priorityd",
         current_task().unwrap().pid.0
     );
-    -1
+    if prio >= 2 {
+        let current = current_task().unwrap();
+        let mut inner = current.inner_exclusive_access();
+        inner.priority = prio as usize;
+        prio
+    } else {
+        -1
+    }
 }
