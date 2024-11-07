@@ -1,5 +1,7 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
-use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use super::{
+    frame_alloc, FrameTracker, MemErr, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum,
+};
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -127,10 +129,19 @@ impl PageTable {
     }
     /// set the map between virtual page number and physical page number
     #[allow(unused)]
-    pub fn map(&mut self, vpn: VirtPageNum, ppn: PhysPageNum, flags: PTEFlags) {
+    pub fn map(
+        &mut self,
+        vpn: VirtPageNum,
+        ppn: PhysPageNum,
+        flags: PTEFlags,
+    ) -> Result<(), MemErr> {
         let pte = self.find_pte_create(vpn).unwrap();
-        assert!(!pte.is_valid(), "vpn {:?} is mapped before mapping", vpn);
+        if pte.is_valid() {
+            // mapped before
+            return Err(MemErr::MappedBefore);
+        }
         *pte = PageTableEntry::new(ppn, flags | PTEFlags::V);
+        Ok(())
     }
     /// remove the map between virtual page number and physical page number
     #[allow(unused)]
