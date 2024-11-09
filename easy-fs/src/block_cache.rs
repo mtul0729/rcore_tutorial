@@ -93,8 +93,8 @@ impl BlockCacheManager {
         block_id: usize,
         block_device: Arc<dyn BlockDevice>,
     ) -> Arc<Mutex<BlockCache>> {
-        if let Some(pair) = self.queue.iter().find(|pair| pair.0 == block_id) {
-            Arc::clone(&pair.1)
+        if let Some((_, block_cache)) = self.queue.iter().find(|&&(id, _)| id == block_id) {
+            Arc::clone(&block_cache)
         } else {
             // substitute
             if self.queue.len() == BLOCK_CACHE_SIZE {
@@ -102,10 +102,9 @@ impl BlockCacheManager {
                 if let Some((idx, _)) = self
                     .queue
                     .iter()
-                    .enumerate()
-                    .find(|(_, pair)| Arc::strong_count(&pair.1) == 1)
+                    .find(|(_, block_cache)| Arc::strong_count(&block_cache) == 1)
                 {
-                    self.queue.drain(idx..=idx);
+                    self.queue.remove(*idx);
                 } else {
                     panic!("Run out of BlockCache!");
                 }
