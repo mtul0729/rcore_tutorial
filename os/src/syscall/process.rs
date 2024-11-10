@@ -5,11 +5,10 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     fs::{open_file, OpenFlags},
-    loader::get_app_data_by_name,
     mm::{translated_byte_buffer, translated_refmut, translated_str, MapPermission, VirtAddr},
     task::{
         add_task, append_map_area, current_task, current_user_token, exit_current_and_run_next,
-        get_task_info, remove_map_area, suspend_current_and_run_next, TaskControlBlock, TaskStatus,
+        get_task_info, remove_map_area, suspend_current_and_run_next, TaskStatus,
     },
     timer::get_time_us,
 };
@@ -231,21 +230,21 @@ pub fn sys_spawn(path: *const u8) -> isize {
     trace!("kernel:pid[{}] sys_spawnd", current_task().unwrap().pid.0);
     let token = current_user_token();
     let path = translated_str(token, path);
-    if let Some(data) = get_app_data_by_name(&path) {
-        let new_task = Arc::new(TaskControlBlock::new(data));
-        let pid = new_task.getpid();
-        add_task(new_task.clone());
-        let Some(current) = current_task() else {
+
+    let Some(current) = current_task() else {
+        return -1;
+    };
+    let new_task = current.fork();
+    let all_data = {
+        let Some(app_inode) = open_file(path.as_str(), OpenFlags::RDONLY) else {
             return -1;
         };
-
-        {
-            current.inner_exclusive_access().children.push(new_task);
-        }
-        pid as isize
-    } else {
-        -1
-    }
+        app_inode.read_all()
+    };
+    let pid = new_task.getpid();
+    new_task.exec(all_data.as_slice());
+    add_task(new_task);
+    pid as isize
 }
 
 // YOUR JOB: Set task priority.

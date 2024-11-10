@@ -175,7 +175,7 @@ impl File for OSInode {
         };
         Stat {
             dev: 0,
-            ino: inode.get_id(),
+            ino: inode.get_id() as u64,
             mode: stat_mode,
             nlink: inode.get_link_count(),
             pad: [0; 7],

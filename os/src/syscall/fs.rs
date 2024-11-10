@@ -92,14 +92,14 @@ pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     };
     let stat = osinode.stat();
 
-    let ptr = &st as *const _ as *const u8;
-    let len = size_of::<Stat>();
-    let st = unsafe { core::slice::from_raw_parts(ptr, len) };
-    let bufs = translated_byte_buffer(current_user_token(), ts as *const u8, len);
+    let ptr = &stat as *const _ as *const u8;
+    let len = core::mem::size_of::<Stat>();
+    let stat = unsafe { core::slice::from_raw_parts(ptr, len) };
+    let bufs = translated_byte_buffer(current_user_token(), st as *const u8, len);
     let mut start: usize = 0;
     for buf in bufs {
         let buf_len = buf.len();
-        let src = &st[start..len.min(start + buf_len)];
+        let src = &stat[start..len.min(start + buf_len)];
         buf.copy_from_slice(src);
         start += buf_len;
     }
