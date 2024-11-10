@@ -1,5 +1,6 @@
 //! File and filesystem-related syscalls
-use crate::fs::{linkat, open_file, OpenFlags, Stat};
+
+use crate::fs::{linkat, open_file, unlinkat, OpenFlags, Stat};
 use crate::mm::{translated_byte_buffer, translated_str, UserBuffer};
 use crate::task::{current_task, current_user_token};
 
@@ -75,13 +76,34 @@ pub fn sys_close(fd: usize) -> isize {
     0
 }
 
+use alloc::sync::Arc;
+
 /// YOUR JOB: Implement fstat.
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_fstat NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
+    trace!("kernel:pid[{}] sys_fstat", current_task().unwrap().pid.0);
+    let task = current_task().unwrap();
+    let inner = task.inner_exclusive_access();
+    let Some(osinode) = inner
+        .fd_table
+        .get(fd)
+        .and_then(|file| file.as_ref().map(Arc::clone))
+    else {
+        return -1;
+    };
+    let stat = osinode.stat();
+
+    let ptr = &st as *const _ as *const u8;
+    let len = size_of::<Stat>();
+    let st = unsafe { core::slice::from_raw_parts(ptr, len) };
+    let bufs = translated_byte_buffer(current_user_token(), ts as *const u8, len);
+    let mut start: usize = 0;
+    for buf in bufs {
+        let buf_len = buf.len();
+        let src = &st[start..len.min(start + buf_len)];
+        buf.copy_from_slice(src);
+        start += buf_len;
+    }
+    0
 }
 
 /// YOUR JOB: Implement linkat.
@@ -94,10 +116,12 @@ pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
 }
 
 /// YOUR JOB: Implement unlinkat.
-pub fn sys_unlinkat(_name: *const u8) -> isize {
+pub fn sys_unlinkat(name: *const u8) -> isize {
     trace!(
         "kernel:pid[{}] sys_unlinkat NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let token = current_user_token();
+    let path = translated_str(token, name);
+    unlinkat(&path)
 }

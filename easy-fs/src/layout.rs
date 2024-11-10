@@ -393,6 +393,10 @@ impl DiskInode {
     pub fn add_link_count(&mut self, addition: i32) {
         self.link_conut += addition;
     }
+    pub fn link_count(&self) -> i32 {
+        self.link_conut
+    }
+    
 }
 /// A directory entry
 #[repr(C)]

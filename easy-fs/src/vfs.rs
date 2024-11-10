@@ -244,7 +244,7 @@ impl Inode {
             // has the file been created?
             self.find_inode_pos(path, root_inode)
         };
-        let Some((inode_id,idx)) = self.read_disk_inode(op) else {
+        let Some((inode_id, idx)) = self.read_disk_inode(op) else {
             return -1;
         };
         // decrease link_conut of the inode
@@ -283,5 +283,27 @@ impl Inode {
             dir_disk_inode.size -= DIRENT_SZ as u32;
         });
         block_cache_sync_all();
+    }
+    /// Get link conut
+    pub fn get_link_count(&self) -> u32 {
+        let op = |disk_inode: &DiskInode| disk_inode.link_count();
+        self.read_disk_inode(op) as u32
+    }
+    /// Get inode type, 0 for file, 1 for directory
+    pub fn get_type(&self) -> u8 {
+        let op = |disk_inode: &DiskInode| {
+            if disk_inode.is_file() {
+                0
+            } else if disk_inode.is_dir() {
+                1
+            } else {
+                2
+            }
+        };
+        self.read_disk_inode(op)
+    }
+    /// Get inode number
+    pub fn get_id(&self) -> u32 {
+        0
     }
 }

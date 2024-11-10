@@ -129,6 +129,11 @@ pub fn linkat(old_path: &str, new_path: &str) -> isize {
     ROOT_INODE.link_path(old_path, new_path)
 }
 
+pub fn unlinkat(path: &str) -> isize {
+    ROOT_INODE.unlinkat(path)
+}
+
+use super::{Stat, StatMode};
 impl File for OSInode {
     fn readable(&self) -> bool {
         self.readable
@@ -159,5 +164,21 @@ impl File for OSInode {
             total_write_size += write_size;
         }
         total_write_size
+    }
+
+    fn stat(&self) -> Stat {
+        let inode = self.inner.exclusive_access().inode.clone();
+        let stat_mode = match inode.get_type() {
+            0 => StatMode::FILE,
+            1 => StatMode::DIR,
+            _ => StatMode::NULL,
+        };
+        Stat {
+            dev: 0,
+            ino: inode.get_id(),
+            mode: stat_mode,
+            nlink: inode.get_link_count(),
+            pad: [0; 7],
+        }
     }
 }
