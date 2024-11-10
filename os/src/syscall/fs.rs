@@ -81,17 +81,18 @@ use alloc::sync::Arc;
 /// YOUR JOB: Implement fstat.
 pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     trace!("kernel:pid[{}] sys_fstat", current_task().unwrap().pid.0);
-    let task = current_task().unwrap();
-    let inner = task.inner_exclusive_access();
-    let Some(osinode) = inner
-        .fd_table
-        .get(fd)
-        .and_then(|file| file.as_ref().map(Arc::clone))
-    else {
-        return -1;
+    let stat = {
+        let task = current_task().unwrap();
+        let inner = task.inner_exclusive_access();
+        let Some(osinode) = inner
+            .fd_table
+            .get(fd)
+            .and_then(|file| file.as_ref().map(Arc::clone))
+        else {
+            return -1;
+        };
+        osinode.stat()
     };
-    let stat = osinode.stat();
-
     let ptr = &stat as *const _ as *const u8;
     let len = core::mem::size_of::<Stat>();
     let stat = unsafe { core::slice::from_raw_parts(ptr, len) };
