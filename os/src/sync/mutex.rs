@@ -1,5 +1,7 @@
 //! Mutex (spin-like and blocking(sleep))
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 use super::UPSafeCell;
 use crate::task::TaskControlBlock;
 use crate::task::{block_current_and_run_next, suspend_current_and_run_next};
@@ -12,18 +14,20 @@ pub trait Mutex: Sync + Send {
     fn lock(&self);
     /// Unlock the mutex
     fn unlock(&self);
+    /// whether locking
+    fn is_locking(&self) -> bool;
 }
 
 /// Spinlock Mutex struct
 pub struct MutexSpin {
-    locked: UPSafeCell<bool>,
+    locked: AtomicBool,
 }
 
 impl MutexSpin {
     /// Create a new spinlock mutex
     pub fn new() -> Self {
         Self {
-            locked: unsafe { UPSafeCell::new(false) },
+            locked: AtomicBool::new(false),
         }
     }
 }
@@ -33,22 +37,25 @@ impl Mutex for MutexSpin {
     fn lock(&self) {
         trace!("kernel: MutexSpin::lock");
         loop {
-            let mut locked = self.locked.exclusive_access();
-            if *locked {
-                drop(locked);
-                suspend_current_and_run_next();
-                continue;
-            } else {
-                *locked = true;
+            if self
+                .locked
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+            {
                 return;
+            } else {
+                suspend_current_and_run_next();
             }
         }
     }
 
     fn unlock(&self) {
         trace!("kernel: MutexSpin::unlock");
-        let mut locked = self.locked.exclusive_access();
-        *locked = false;
+        self.locked.store(false, Ordering::Release);
+    }
+
+    fn is_locking(&self) -> bool {
+        self.locked.fetch_and(true, Ordering::Relaxed)
     }
 }
 
@@ -101,5 +108,9 @@ impl Mutex for MutexBlocking {
         } else {
             mutex_inner.locked = false;
         }
+    }
+
+    fn is_locking(&self) -> bool {
+        self.inner.exclusive_access().locked
     }
 }
