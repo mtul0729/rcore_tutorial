@@ -2,7 +2,9 @@
 
 ## 代码总结
 
-semaphore的需要在tck中增加一个`allocation`变量，记录每个task已获得的信号量，由sys_semaphore_up和sys_semaphore_down维护。算法所需的其余变量都在sys_semaphore_down()期间计算得到。
+为实现semaphore的死锁检测，需要在TCB中增加一个`allocation`变量,记录,用于记录每个task已获得的信号量。
+在PCB中增加`requests`,用于最终各个task正在等待的信号量，task wait操作时，如果没能立即返回,`requests`中对应字段加1，task wait返回时，`requests`中对应字段减1。
+算法所需的其余变量都在`sys_semaphore_down()`期间计算得到。
 
 ## 问答题
 
