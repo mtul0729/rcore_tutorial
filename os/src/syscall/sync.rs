@@ -151,7 +151,8 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
         if allocation.len() <= sem_id {
             allocation.resize(sem_id + 1, 0);
         }
-        allocation[sem_id] += 1;
+        allocation[sem_id] -= 1;
+        // println!("")
     }
     drop(process_inner);
     sem.up(current_tid, sem_id);
@@ -213,12 +214,11 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
             }
         }
 
-        let current_task = current_task().unwrap();
-        let mut current_task_inner = current_task.inner_exclusive_access();
         // 当前线程请求资源
         requests[current_tid][sem_id] += 1;
 
         let mut change = true;
+        let mut debug_cnt = 0;
         while change {
             change = false;
             for (tid, finished) in finish.iter_mut().enumerate() {
@@ -229,7 +229,11 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
                         break;
                     }
                 }
-                if !*finished && enough {
+                println!(
+                    "Round {}: thread {} applying for sem{}.work vector:{:?} request[{}]:{:?},allocations[{}]:{:?}",
+                    debug_cnt, current_tid, sem_id, work, tid, requests[tid],tid,allocations[tid]
+                );
+                if (!*finished) && enough {
                     *finished = true;
                     change = true;
                     for (work, alloc) in work.iter_mut().zip(allocations[tid].iter()) {
@@ -237,6 +241,14 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
                     }
                 }
             }
+            //DEBUG
+            // if current_tid == 1 && sem_id == 1 {
+            println!(
+                "Round {}: thread {} applying for sem{},finish vector:{:?}",
+                debug_cnt, current_tid, sem_id, finish
+            );
+            debug_cnt += 1;
+            // }
         }
 
         for is_finished in finish {
@@ -246,12 +258,6 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         }
 
         // allocate resource
-
-        let allocation = &mut current_task_inner.allocated;
-        if allocation.len() <= sem_id {
-            allocation.resize(sem_id + 1, 0);
-        }
-        allocation[sem_id] += 1;
     }
     let sem = process_inner.semaphore_list[sem_id]
         .as_ref()

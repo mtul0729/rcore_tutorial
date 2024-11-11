@@ -102,7 +102,10 @@ impl ProcessControlBlock {
         if request[tid].len() <= sem_id {
             request[tid].resize(sem_id + 1, 0);
         }
-        request[tid][sem_id] -= 1;
+        println!("request[{}][{}] is {}", tid, sem_id, request[tid][sem_id]);
+        if request[tid][sem_id] != 0 {
+            request[tid][sem_id] -= 1;
+        }
     }
     pub fn request_down(&self, tid: usize, sem_id: usize) {
         let mut inner = self.inner_exclusive_access();
@@ -114,6 +117,11 @@ impl ProcessControlBlock {
             request[tid].resize(sem_id + 1, 0);
         }
         request[tid][sem_id] += 1;
+    }
+    /// Get task with specific tid
+    pub fn get_task(&self, tid: usize) -> Option<Arc<TaskControlBlock>> {
+        let inner = self.inner_exclusive_access();
+        inner.tasks[tid].as_ref().map(Arc::clone)
     }
     /// new process from elf file
     pub fn new(elf_data: &[u8]) -> Arc<Self> {

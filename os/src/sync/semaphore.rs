@@ -14,7 +14,8 @@ pub struct Semaphore {
 
 pub struct SemaphoreInner {
     pub count: isize,
-    pub wait_queue: VecDeque<Arc<TaskControlBlock>>,
+    /// tid and tcb
+    pub wait_queue: VecDeque<(usize, Arc<TaskControlBlock>)>,
 }
 
 impl Semaphore {
@@ -32,16 +33,15 @@ impl Semaphore {
     }
 
     /// up operation of semaphore
-    pub fn up(&self, tid: usize, sem_id: usize) {
+    pub fn up(&self, _tid: usize, sem_id: usize) {
         trace!("kernel: Semaphore::up");
         let mut inner = self.inner.exclusive_access();
         inner.count += 1;
         if inner.count <= 0 {
-            let process = current_process();
-            process.request_up(tid, sem_id);
-
-            if let Some(task) = inner.wait_queue.pop_front() {
+            if let Some((tid, task)) = inner.wait_queue.pop_front() {
                 wakeup_task(task);
+                let process = current_process();
+                process.request_up(tid, sem_id);
             }
         }
     }
@@ -51,12 +51,24 @@ impl Semaphore {
         trace!("kernel: Semaphore::down");
         let mut inner = self.inner.exclusive_access();
         inner.count -= 1;
+        let process = current_process();
         if inner.count < 0 {
-            let process = current_process();
+            println!(
+                "request added: tid {},sem_id {}, sem_count {}",
+                tid, sem_id, inner.count
+            );
             process.request_down(tid, sem_id);
-            inner.wait_queue.push_back(current_task().unwrap());
+            inner.wait_queue.push_back((tid, current_task().unwrap()));
             drop(inner);
             block_current_and_run_next();
+        } else {
+            let task = process.get_task(tid).unwrap();
+            let mut current_task_inner = task.inner_exclusive_access();
+            let allocation = &mut current_task_inner.allocated;
+            if allocation.len() <= sem_id {
+                allocation.resize(sem_id + 1, 0);
+            }
+            allocation[sem_id] += 1;
         }
     }
     /// get the count of semaphore
