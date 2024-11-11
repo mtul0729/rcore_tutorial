@@ -134,16 +134,11 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
 }
 /// semaphore up syscall
 pub fn sys_semaphore_up(sem_id: usize) -> isize {
+    let current_tid = get_tid();
     trace!(
         "kernel:pid[{}] tid[{}] sys_semaphore_up",
         current_task().unwrap().process.upgrade().unwrap().getpid(),
-        current_task()
-            .unwrap()
-            .inner_exclusive_access()
-            .res
-            .as_ref()
-            .unwrap()
-            .tid
+        current_tid
     );
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
@@ -159,7 +154,7 @@ pub fn sys_semaphore_up(sem_id: usize) -> isize {
         allocation[sem_id] += 1;
     }
     drop(process_inner);
-    sem.up();
+    sem.up(current_tid, sem_id);
     0
 }
 fn get_tid() -> usize {
@@ -187,16 +182,20 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         let resourse_num = process_inner.semaphore_list.len();
 
         let mut work = alloc::vec![0;resourse_num];
-        for (sem_id,sem )in process_inner.semaphore_list.iter().enumerate() {
+        for (sem_id, sem) in process_inner.semaphore_list.iter().enumerate() {
             if let Some(sem) = sem {
                 let count = sem.get_count().max(0) as usize;
-                work[sem_id]=count;
-            } 
+                work[sem_id] = count;
+            }
         }
 
         let tasks_num = process_inner.tasks.len();
         let mut allocations = alloc::vec![alloc::vec![0; resourse_num]; tasks_num];
-        let mut requests = alloc::vec![alloc::vec![0; resourse_num]; tasks_num];
+        let mut requests = process_inner.requests.clone();
+        requests.resize(tasks_num, alloc::vec![]);
+        for req in requests.iter_mut() {
+            req.resize(resourse_num, 0);
+        }
         let mut finish = alloc::vec![false; tasks_num];
 
         for (tid, task) in process_inner.tasks.iter().enumerate() {
@@ -212,12 +211,10 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
             for (sem_id, sem_alloc) in task_inner.allocated.iter().enumerate() {
                 allocations[tid][sem_id] = *sem_alloc;
             }
-
-            for (sem_id, sem_req) in task_inner.requested.iter().enumerate() {
-                requests[tid][sem_id] = *sem_req;
-            }
         }
 
+        let current_task = current_task().unwrap();
+        let mut current_task_inner = current_task.inner_exclusive_access();
         // 当前线程请求资源
         requests[current_tid][sem_id] += 1;
 
@@ -249,8 +246,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         }
 
         // allocate resource
-        let current_task = current_task().unwrap();
-        let mut current_task_inner = current_task.inner_exclusive_access();
+
         let allocation = &mut current_task_inner.allocated;
         if allocation.len() <= sem_id {
             allocation.resize(sem_id + 1, 0);
@@ -262,7 +258,7 @@ pub fn sys_semaphore_down(sem_id: usize) -> isize {
         .map(Arc::clone)
         .unwrap();
     drop(process_inner);
-    sem.down();
+    sem.down(current_tid, sem_id);
     0
 }
 /// condvar create syscall

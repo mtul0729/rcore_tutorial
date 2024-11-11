@@ -51,6 +51,8 @@ pub struct ProcessControlBlockInner {
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
     /// whether deadlock detect enabled
     pub deadlock_detect_enabled: bool,
+    /// request
+    pub requests: Vec<Vec<usize>>,
 }
 
 impl ProcessControlBlockInner {
@@ -91,6 +93,28 @@ impl ProcessControlBlock {
     pub fn inner_exclusive_access(&self) -> RefMut<'_, ProcessControlBlockInner> {
         self.inner.exclusive_access()
     }
+    pub fn request_up(&self, tid: usize, sem_id: usize) {
+        let mut inner = self.inner_exclusive_access();
+        let request = &mut inner.requests;
+        if request.len() <= tid {
+            request.resize(tid + 1, Vec::new());
+        }
+        if request[tid].len() <= sem_id {
+            request[tid].resize(sem_id + 1, 0);
+        }
+        request[tid][sem_id] -= 1;
+    }
+    pub fn request_down(&self, tid: usize, sem_id: usize) {
+        let mut inner = self.inner_exclusive_access();
+        let request = &mut inner.requests;
+        if request.len() <= tid {
+            request.resize(tid + 1, Vec::new());
+        }
+        if request[tid].len() <= sem_id {
+            request[tid].resize(sem_id + 1, 0);
+        }
+        request[tid][sem_id] += 1;
+    }
     /// new process from elf file
     pub fn new(elf_data: &[u8]) -> Arc<Self> {
         trace!("kernel: ProcessControlBlock::new");
@@ -122,6 +146,7 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     deadlock_detect_enabled: false,
+                    requests: Vec::new(),
                 })
             },
         });
@@ -249,6 +274,7 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     deadlock_detect_enabled: parent.deadlock_detect_enabled,
+                    requests: Vec::new(),
                 })
             },
         });
